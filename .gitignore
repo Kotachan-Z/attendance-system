@@ -1,0 +1,42 @@
+# ───────── OS / エディタ ─────────
+.DS_Store
+Thumbs.db
+*.swp
+
+# ───────── Claude Code / AI ツール ─────────
+.claude/
+.cursor/
+.codex/
+.idea/
+.vscode/
+.zed/
+
+# ───────── 秘密情報（保険。各サブ .gitignore でも除外済み）─────────
+# 実際の環境設定・APIトークンは絶対にコミットしない
+.env
+.env.backup
+.env.production
+**/config.ini
+
+# ───────── 個人情報（顔写真・撮影画像）─────────
+# storage/app/public 配下の .gitignore でも除外しているが念のため
+app/storage/app/public/faces/
+app/storage/app/public/captures/
+app/storage/app/public/detections/
+
+# ───────── データベース実体 ─────────
+*.sqlite
+*.sqlite-journal
+
+# ───────── Python（camera）─────────
+__pycache__/
+*.pyc
+venv/
+.cache/
+
+# ───────── 依存関係・ビルド成果物 ─────────
+/app/vendor/
+/app/node_modules/
+/app/public/build/
+/app/public/hot
+/app/public/storage

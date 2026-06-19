@@ -1,0 +1,8 @@
+# 実際の設定（APIトークン等の秘密情報を含むため Git 管理しない）
+config.ini
+
+# Python
+venv/
+__pycache__/
+*.pyc
+.cache/
