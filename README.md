@@ -9,6 +9,55 @@ OAK-D-Lite-FF（RGB + 深度カメラ）と InsightFace で顔認証を行い、
 
 ---
 
+## 📸 スクリーンショット
+
+### ログイン画面
+
+<table>
+  <tr>
+    <td align="center"><b>教職員ログイン</b></td>
+    <td align="center"><b>生徒ログイン</b></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/01_teacher_login.png" width="480"/></td>
+    <td><img src="docs/screenshots/02_student_login.png" width="480"/></td>
+  </tr>
+</table>
+
+### 管理画面（教職員）
+
+<table>
+  <tr>
+    <td align="center"><b>ダッシュボード</b><br><sub>進行中セッション・本日の出席状況をリアルタイム表示</sub></td>
+    <td align="center"><b>セッション一覧</b><br><sub>過去〜進行中の授業セッションと出席数</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/03_dashboard.png" width="480"/></td>
+    <td><img src="docs/screenshots/06_sessions.png" width="480"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>時間割グリッド</b><br><sub>曜日×時限で授業を設定。期間内は毎週自動生成</sub></td>
+    <td align="center"><b>セッション詳細</b><br><sub>出席・遅刻・欠席を撮影画像付きで確認・手動修正</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/08_schedules.png" width="480"/></td>
+    <td><img src="docs/screenshots/07_session_detail.png" width="480"/></td>
+  </tr>
+</table>
+
+### セキュリティ機能
+
+<table>
+  <tr>
+    <td align="center"><b>検出ログ</b><br><sub>なりすまし疑い・未登録者の検出を記録。撮影画像・深度標準偏差付き</sub></td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/09_detection_log.png" width="480"/></td>
+  </tr>
+</table>
+
+---
+
 ## 構成
 
 ```
