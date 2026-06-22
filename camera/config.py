@@ -58,8 +58,8 @@ OFFLINE_QUEUE_MAX     = _int("api", "offline_queue_max",  "OFFLINE_QUEUE_MAX",  
 INSIGHTFACE_MODEL     = _str("face", "model",                    "INSIGHTFACE_MODEL",        "buffalo_l")
 DET_SIZE              = _int("face", "detection_size",           "DET_SIZE",                 640)
 MIN_FACE_CONFIDENCE   = _float("face", "min_detection_confidence", "MIN_FACE_CONFIDENCE",    0.70)
-FACE_MATCH_THRESHOLD  = _float("face", "match_threshold",         "FACE_MATCH_THRESHOLD",     0.50)
-FACE_AMBIGUITY_MARGIN = _float("face", "ambiguity_margin",        "FACE_AMBIGUITY_MARGIN",    0.08)
+FACE_MATCH_THRESHOLD  = _float("face", "match_threshold",         "FACE_MATCH_THRESHOLD",     0.40)
+FACE_AMBIGUITY_MARGIN = _float("face", "ambiguity_margin",        "FACE_AMBIGUITY_MARGIN",    0.10)
 MIN_FACE_SIZE         = _int("face", "min_face_size",             "MIN_FACE_SIZE",            60)
 
 # ── [liveness] 深度なりすまし検出 ─────────────────────────────────────
@@ -74,6 +74,9 @@ STUDENT_CACHE_TTL_SEC = _int("recognition", "student_cache_ttl_sec", "STUDENT_CA
 DETECT_INTERVAL       = _int("recognition", "detect_interval",       "DETECT_INTERVAL",       3)
 # なりすまし疑い・識別不能ログの再記録までの最小間隔（秒）。同じ状況の連投を防ぐ。
 DETECTION_LOG_COOLDOWN_SEC = _int("recognition", "detection_log_cooldown_sec", "DETECTION_LOG_COOLDOWN_SEC", 30)
+# テンポラル投票: この回数だけ連続して同一学生が照合されたとき初めて出席処理へ進む。
+#   1フレームの偶発的な誤マッチ（横顔・まばたき・照明変化）を排除する安全弁。
+TEMPORAL_VOTE_MIN = _int("recognition", "temporal_vote_min", "TEMPORAL_VOTE_MIN", 3)
 
 # ── [camera] カメラ設定 ───────────────────────────────────────────────
 CAMERA_WIDTH  = _int("camera", "width",        "CAMERA_WIDTH",  1920)
