@@ -30,8 +30,10 @@ from config import (
     JPEG_QUALITY,
     MIN_FACE_SIZE,
     STUDENT_CACHE_TTL_SEC,
+    TEMPORAL_VOTE_MIN,
 )
 from depth_checker import is_live_face
+from face_detector import compute_centroid
 
 logging.basicConfig(
     level=logging.INFO,
@@ -62,8 +64,10 @@ def load_student_embeddings(students: list[dict]) -> list[dict]:
 
         if embeddings:
             s["embeddings"] = embeddings
+            # 複数写真をセントロイド（正規化済み平均ベクトル）に集約して照合精度を向上
+            s["centroid"] = compute_centroid(embeddings)
             loaded.append(s)
-            logger.info("  埋め込み読み込み: %s (%s) — %d枚",
+            logger.info("  埋め込み読み込み: %s (%s) — %d枚 → セントロイド生成済み",
                         s["name"], s["student_number"], len(embeddings))
         else:
             logger.warning("  全写真で顔検出失敗（スキップ）: %s", s["name"])
@@ -131,6 +135,10 @@ def main_loop(device, rgb_queue, depth_queue, session, students):
     frame_count = 0
     last_faces: list[dict] = []  # 前回の検出結果をキャッシュ
 
+    # テンポラル投票: 同一学生が TEMPORAL_VOTE_MIN フレーム連続して照合されたら出席処理へ進む。
+    # 1フレームの瞬間的な誤マッチ（横顔・目閉じ・照明変化）による誤記録を防ぐ。
+    consecutive_hits: dict[int, int] = {}  # student_id → 連続マッチフレーム数
+
     logger.info("カメラ起動完了。Ctrl+C または 'q' で終了。")
 
     while True:
@@ -169,6 +177,10 @@ def main_loop(device, rgb_queue, depth_queue, session, students):
             depth_norm = cv2.normalize(depth_frame, None, 0, 255, cv2.NORM_MINMAX, dtype=cv2.CV_8U)
             depth_vis  = cv2.applyColorMap(depth_norm, cv2.COLORMAP_JET)
             depth_vis  = cv2.resize(depth_vis, (CAMERA_WIDTH, CAMERA_HEIGHT))
+
+        # テンポラル投票: 今フレームでマッチした学生 ID を追跡し、
+        # 前フレームでマッチしなかった学生のカウンタをリセットする。
+        matched_sids_this_frame: set[int] = set()
 
         for face in faces:
             if face["w"] < MIN_FACE_SIZE or face["h"] < MIN_FACE_SIZE:
@@ -211,6 +223,23 @@ def main_loop(device, rgb_queue, depth_queue, session, students):
                 logger.info("  → スキップ（本日出席済み）")
                 _draw_match(rgb_frame, face, matched_student["name"], dist, duplicate=True)
                 continue
+
+            # Step 1.5: テンポラル投票 ─ 連続 TEMPORAL_VOTE_MIN フレーム一致で確定
+            #   1フレームの瞬間的な誤マッチ（斜め顔・まばたき・照明ちらつき）を除去する。
+            matched_sids_this_frame.add(sid)
+            consecutive_hits[sid] = consecutive_hits.get(sid, 0) + 1
+            hits = consecutive_hits[sid]
+
+            if hits < TEMPORAL_VOTE_MIN:
+                logger.info("  → 投票待ち (%d/%d フレーム): %s",
+                            hits, TEMPORAL_VOTE_MIN, matched_student["name"])
+                _draw_match(rgb_frame, face, matched_student["name"], dist)
+                continue  # まだ確定しない
+
+            # TEMPORAL_VOTE_MIN フレーム連続確認できた → 出席処理へ進む
+            consecutive_hits[sid] = 0  # カウンタをリセット（二重送信防止）
+            logger.info("  → %d フレーム連続確認 → 出席処理へ: %s",
+                        TEMPORAL_VOTE_MIN, matched_student["name"])
 
             # Step 2: 識別後に深度センサーでなりすまし確認
             bbox_tuple = (face["x"], face["y"], face["w"], face["h"])
@@ -263,6 +292,12 @@ def main_loop(device, rgb_queue, depth_queue, session, students):
                 attended.add(sid)
 
             _draw_match(rgb_frame, face, matched_student["name"], dist)
+
+        # テンポラル投票: 今フレームで見えなかった学生のカウンタをリセット
+        # （一時的に顔が見えなくなった後の残カウントを防ぎ、再登場時に投票を最初からやり直す）
+        for sid in list(consecutive_hits.keys()):
+            if sid not in matched_sids_this_frame:
+                consecutive_hits[sid] = 0
 
         if DEBUG_DISPLAY:
             disp = cv2.resize(rgb_frame, (CAMERA_WIDTH, CAMERA_HEIGHT))
