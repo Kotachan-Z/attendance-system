@@ -75,14 +75,14 @@
             </div>
             <p id="err-face" class="text-red-500 text-xs mt-1 hidden"></p>
 
-            <div class="mt-2 flex gap-3">
+            <div class="mt-2 flex flex-wrap gap-3">
                 <button type="button" onclick="addFaceInput()"
                         class="text-xs text-indigo-600 hover:underline">+ ファイルを追加</button>
                 <button type="button" onclick="camOpen()"
-                        class="text-xs text-indigo-600 hover:underline">📷 カメラで撮影</button>
+                        class="text-xs text-indigo-600 hover:underline">📷 1枚撮影</button>
+                <button type="button" onclick="camGuideOpen()"
+                        class="text-xs font-medium text-indigo-700 hover:underline">📷 ガイド撮影（5枚・精度向上）</button>
             </div>
-
-            <div id="previews" class="flex flex-wrap gap-2 mt-3"></div>
         </div>
 
         <div class="flex gap-3 pt-2">
@@ -188,25 +188,44 @@ function applyErrors(errors) {
 }
 
 // ── 写真入力 ──────────────────────────────────────────────────────────────
-function addPreview(input) {
+async function addPreview(input) {
     if (!input.files[0]) return;
-    const img = document.createElement('img');
-    img.src = URL.createObjectURL(input.files[0]);
-    img.className = 'w-20 h-20 object-cover rounded-lg border-2 border-indigo-200';
-    document.getElementById('previews').appendChild(img);
+    const file = input.files[0];
+    const row  = input.closest('.face-row');
+
+    // 既存のサムネイル・バッジをクリア
+    row.querySelectorAll('.face-thumb, .quality-badge').forEach(el => el.remove());
+
+    // インラインサムネイル（input の前に挿入）
+    const thumb = document.createElement('img');
+    thumb.className = 'face-thumb w-14 h-14 object-cover rounded-lg border-2 border-indigo-200 flex-shrink-0';
+    thumb.src = URL.createObjectURL(file);
+    input.insertAdjacentElement('beforebegin', thumb);
+
+    // 品質バッジ（label input の後ろに挿入）
+    const badge = document.createElement('div');
+    badge.className = 'quality-badge flex-shrink-0';
+    badge.innerHTML = '<span style="font-size:11px;color:#9ca3af">確認中…</span>';
+    const labelEl = row.querySelector('input[name="face_labels[]"]');
+    if (labelEl) labelEl.insertAdjacentElement('afterend', badge);
+    else row.appendChild(badge);
+
+    const q = await analyzeFileQuality(file);
+    badge.innerHTML = _buildQualityBadge(q);
 }
+
 function addFaceInput() {
     const container = document.getElementById('face-inputs');
     if (container.children.length >= 10) return;
     const row = document.createElement('div');
-    row.className = 'flex gap-2 items-center face-row';
+    row.className = 'face-row flex gap-2 items-center';
     row.innerHTML = `
         <input type="file" name="face_images[]" accept="image/*"
-               class="flex-1 border rounded-lg px-3 py-2 text-sm" onchange="addPreview(this)">
+               class="flex-1 min-w-0 border rounded-lg px-3 py-2 text-sm" onchange="addPreview(this)">
         <input type="text" name="face_labels[]" placeholder="メモ（左向きなど）"
-               class="w-32 border rounded-lg px-2 py-2 text-xs text-gray-500">
-        <button type="button" onclick="this.parentElement.remove()"
-                class="text-red-400 hover:text-red-600 text-lg leading-none">×</button>
+               class="w-28 flex-shrink-0 border rounded-lg px-2 py-2 text-xs text-gray-500">
+        <button type="button" onclick="this.closest('.face-row').remove()"
+                class="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 text-sm leading-none">×</button>
     `;
     container.appendChild(row);
 }

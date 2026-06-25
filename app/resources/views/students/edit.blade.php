@@ -129,11 +129,13 @@
                             class="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-full text-gray-400 hover:text-red-500 hover:bg-red-50 text-sm leading-none">×</button>
                 </div>
             </div>
-            <div class="mt-2 flex gap-3">
+            <div class="mt-2 flex flex-wrap gap-3">
                 <button type="button" onclick="addFaceInput()"
                         class="text-xs text-indigo-600 hover:underline">+ ファイルを追加</button>
                 <button type="button" onclick="camOpen()"
-                        class="text-xs text-indigo-600 hover:underline">📷 カメラで撮影</button>
+                        class="text-xs text-indigo-600 hover:underline">📷 1枚撮影</button>
+                <button type="button" onclick="camGuideOpen()"
+                        class="text-xs font-medium text-indigo-700 hover:underline">📷 ガイド撮影（5枚・精度向上）</button>
             </div>
         </div>
 
@@ -218,20 +220,37 @@ function applyErrors(errors) {
 }
 
 // ── 写真入力 ──────────────────────────────────────────────────────────────
-function updatePreview(input) {
+async function updatePreview(input) {
     if (!input.files[0]) return;
-    const row = input.closest('.face-row');
+    const file = input.files[0];
+    const row  = input.closest('.face-row');
+
+    // サムネイル更新
     const thumb = row.querySelector('.preview-thumb');
-    const img = document.createElement('img');
-    img.src = URL.createObjectURL(input.files[0]);
-    img.style.cssText = 'width:56px;height:56px;object-fit:cover;display:block;';
-    thumb.innerHTML = '';
-    thumb.appendChild(img);
-    thumb.style.display = 'block';
+    if (thumb) {
+        const img = document.createElement('img');
+        img.src = URL.createObjectURL(file);
+        img.style.cssText = 'width:56px;height:56px;object-fit:cover;display:block;';
+        thumb.innerHTML = '';
+        thumb.appendChild(img);
+        thumb.style.display = 'block';
+    }
+
+    // 品質バッジ
+    row.querySelectorAll('.quality-badge').forEach(el => el.remove());
+    const badge = document.createElement('div');
+    badge.className = 'quality-badge flex-shrink-0';
+    badge.innerHTML = '<span style="font-size:11px;color:#9ca3af">確認中…</span>';
+    const removeBtn = row.querySelector('button[type="button"]');
+    if (removeBtn) removeBtn.insertAdjacentElement('beforebegin', badge);
+    else row.appendChild(badge);
+
+    const q = await analyzeFileQuality(file);
+    badge.innerHTML = _buildQualityBadge(q);
 }
-function removeRow(btn) {
-    btn.closest('.face-row').remove();
-}
+
+function removeRow(btn) { btn.closest('.face-row').remove(); }
+
 function addFaceInput() {
     const container = document.getElementById('face-inputs');
     const div = document.createElement('div');
