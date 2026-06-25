@@ -1,0 +1,51 @@
+# ============================================================
+#  出席管理システム — カメラプロセス systemd サービス（テンプレート）
+# ============================================================
+#  install_rpi.sh を実行すると自動で /etc/systemd/system/ に配置されます。
+#  手動でセットアップする場合は以下の手順に従ってください。
+#
+#  手順:
+#    1. このファイルを /etc/systemd/system/attendance-camera.service にコピー
+#    2. User= と WorkingDirectory= と ExecStart= のパスを実際の値に書き換える
+#    3. sudo systemctl daemon-reload
+#    4. sudo systemctl enable attendance-camera   # 起動時に自動スタート
+#    5. sudo systemctl start attendance-camera    # 今すぐ起動
+#
+#  ログの確認:
+#    journalctl -u attendance-camera -f           # リアルタイム
+#    journalctl -u attendance-camera --since today
+#
+#  停止 / 再起動:
+#    sudo systemctl stop attendance-camera
+#    sudo systemctl restart attendance-camera
+# ============================================================
+
+[Unit]
+Description=出席管理システム カメラプロセス (InsightFace + OAK-D)
+# ネットワーク接続後に起動（Laravel API への通信が必要なため）
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+
+# 実行ユーザー（Raspberry Pi OS のデフォルトは "pi"）
+User=pi
+
+# camera/ ディレクトリを作業ディレクトリにする（config.ini を読み込むため）
+WorkingDirectory=/home/pi/attendance-systemV2/camera
+
+# 仮想環境の Python で main.py を実行
+ExecStart=/home/pi/attendance-venv/bin/python main.py
+
+# クラッシュ時に自動再起動（カメラ抜き差しや一時的な接続切れに対応）
+Restart=on-failure
+RestartSec=10
+
+# ログを journald に流す
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=attendance-camera
+
+[Install]
+WantedBy=multi-user.target
