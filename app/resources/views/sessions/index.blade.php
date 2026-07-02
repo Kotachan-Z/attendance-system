@@ -1,9 +1,12 @@
 @extends('layouts.app')
-@section('title', 'セッション一覧')
+@section('title', '出席記録')
 
 @section('content')
 <div class="mb-6 flex items-center justify-between">
-    <h1 class="text-2xl font-bold text-gray-800">セッション一覧</h1>
+    <div>
+        <h1 class="text-2xl font-bold text-gray-800">出席記録</h1>
+        <p class="text-sm text-gray-500 mt-0.5">授業セッションごとの出席状況の一覧</p>
+    </div>
     @if (Auth::user()->isAdmin())
     <a href="{{ route('sessions.create') }}"
        class="bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium px-4 py-2 rounded">

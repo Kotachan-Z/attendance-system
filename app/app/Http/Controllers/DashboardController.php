@@ -15,9 +15,13 @@ class DashboardController extends Controller
                                           ->latest()
                                           ->get();
 
-        $activeSessions = AttendanceSession::whereNull('ended_at')->with('course')->get();
+        $activeSessions = AttendanceSession::whereNull('ended_at')
+                                           ->with('course')
+                                           ->withCount('attendanceRecords')
+                                           ->get();
 
-        $totalStudents  = Student::count();
+        // 在籍学生のみ（退学者は名簿・API と同様に集計から除外）
+        $totalStudents  = Student::active()->count();
         $todayPresent   = AttendanceRecord::whereHas('attendanceSession', fn($q) =>
                               $q->whereDate('session_date', today())
                           )->distinct('student_id')->count('student_id');
