@@ -419,11 +419,30 @@ def _test_run(students, session):
     ok_flat, sd_flat = is_live_face(flat_depth, (0, 0, 100, 100))
     ok_live, sd_live = is_live_face(live_depth, (0, 0, 100, 100))
 
-    logger.info("深度テスト — 平面: live=%s std=%.1f mm (期待: False)", ok_flat, sd_flat)
-    logger.info("深度テスト — 立体: live=%s std=%.1f mm (期待: True)",  ok_live, sd_live)
+    logger.info("深度テスト — 平面: live=%s ばらつき=%.1f mm (期待: False)", ok_flat, sd_flat)
+    logger.info("深度テスト — 立体: live=%s ばらつき=%.1f mm (期待: True)",  ok_live, sd_live)
 
     assert not ok_flat, "平面が生体と判定されました"
     assert ok_live,     "立体が非生体と判定されました"
+
+    # スマホ画面すり抜けの再現テスト:
+    # bbox に「画面(平面)と背景の深度段差」が混入すると、旧処理では
+    # 全体の std が跳ね上がり生体判定を突破できていた。
+    # ケースA: 画面が bbox の大部分を占める → 中央クロップは完全な平面 → 平面として拒否
+    phone_big = np.full((100, 100), 1200, dtype=np.float32)   # 背景 1.2m
+    phone_big[20:80, 20:80] = 450                              # スマホ画面 45cm
+    ok_pb, sd_pb = is_live_face(phone_big, (0, 0, 100, 100))
+
+    # ケースB: 画面が小さく中央クロップにも段差が混入 → ばらつき上限超過で拒否
+    phone_small = np.full((100, 100), 1200, dtype=np.float32)
+    phone_small[30:70, 30:70] = 450
+    ok_ps, sd_ps = is_live_face(phone_small, (0, 0, 100, 100))
+
+    logger.info("深度テスト — スマホ画面(大): live=%s ばらつき=%.1f mm (期待: False)", ok_pb, sd_pb)
+    logger.info("深度テスト — スマホ画面(小): live=%s ばらつき=%.1f mm (期待: False)", ok_ps, sd_ps)
+
+    assert not ok_pb, "スマホ画面(大)が生体と判定されました（すり抜け）"
+    assert not ok_ps, "スマホ画面(小)が生体と判定されました（すり抜け）"
 
     logger.info("--- テスト合格 ---")
 
