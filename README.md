@@ -213,7 +213,8 @@ php artisan schedule:list         # 登録済みの定期処理を確認
 |---|---|---|
 | `LARAVEL_API_URL` | `http://localhost:8000/api` | Laravel API の URL |
 | `CAMERA_API_TOKEN` | （要設定） | Laravel の `.env` と同じ値にする |
-| `FACE_MATCH_THRESHOLD` | `0.50` | 顔照合のしきい値（小さいほど厳しい） |
+| `FACE_MATCH_THRESHOLD` | `0.40` | 顔照合のしきい値（小さいほど厳しい） |
+| `TEMPORAL_VOTE_MIN` | `3` | 連続何回の検出一致で出席を確定するか |
 | `DEPTH_LIVENESS_THRESHOLD_MM` | `15` | なりすまし検出の深度ばらつき下限 |
-| `INSIGHTFACE_MODEL` | `buffalo_l` | `buffalo_s` にすると軽量 |
+| `INSIGHTFACE_MODEL` | `buffalo_l` | `buffalo_s` にすると軽量（RPi で重い場合に推奨） |
 | `DEBUG_DISPLAY` | `0` | `1` でプレビュー表示（重い場合は 0） |
