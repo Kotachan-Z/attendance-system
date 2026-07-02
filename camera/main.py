@@ -10,6 +10,7 @@ OAK-D-Lite-FF 出席管理カメラスクリプト（depthai 3.x 対応）
 import argparse
 import io
 import logging
+import os
 import sys
 import time
 
@@ -43,9 +44,31 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# 埋め込みキャッシュ: 画像パス → (更新時刻, 埋め込み)。
+# キャッシュ更新のたびに全写真を InsightFace で再推論するとメインループが
+# 数秒〜数十秒止まる（特に RPi）ため、変化のない写真の結果を再利用する。
+# 顔が検出できなかった写真も None で記憶し、毎回の再推論を避ける。
+_emb_cache: dict[str, tuple[float, "np.ndarray | None"]] = {}
+
+
+def _embedding_for(path: str):
+    """埋め込みを取得する（更新時刻が変わらない限りキャッシュを返す）。"""
+    try:
+        mtime = os.path.getmtime(path)
+    except OSError:
+        return None
+    cached = _emb_cache.get(path)
+    if cached is not None and cached[0] == mtime:
+        return cached[1]
+    emb = face_detector.get_embedding_from_file(path)
+    _emb_cache[path] = (mtime, emb)
+    return emb
+
+
 def load_student_embeddings(students: list[dict]) -> list[dict]:
     """各学生の全顔写真から埋め込みリストを構築する。1枚も成功しない学生はスキップ。"""
     loaded = []
+    seen_paths: set[str] = set()
     for s in students:
         embeddings = []
         face_images = s.get("face_images", [])
@@ -56,7 +79,8 @@ def load_student_embeddings(students: list[dict]) -> list[dict]:
 
         for fi in face_images:
             path = fi.get("local_path", "")
-            emb = face_detector.get_embedding_from_file(path)
+            seen_paths.add(path)
+            emb = _embedding_for(path)
             if emb is not None:
                 embeddings.append(emb)
             else:
@@ -71,46 +95,12 @@ def load_student_embeddings(students: list[dict]) -> list[dict]:
                         s["name"], s["student_number"], len(embeddings))
         else:
             logger.warning("  全写真で顔検出失敗（スキップ）: %s", s["name"])
+
+    # 削除された写真のキャッシュを掃除（メモリ保護）
+    for path in list(_emb_cache):
+        if path not in seen_paths:
+            del _emb_cache[path]
     return loaded
-
-
-def create_pipeline():
-    """depthai 3.x パイプライン構築: RGB + 深度（RGB に align 済み）"""
-    import depthai as dai
-
-    with dai.Pipeline(dai.Device()) as pipeline:
-        device = pipeline.getDefaultDevice()
-
-        # カラーカメラ (CAM_A = RGB)
-        cam_color = pipeline.create(dai.node.Camera).build(dai.CameraBoardSocket.CAM_A)
-
-        # モノカメラ (CAM_B = 左, CAM_C = 右)
-        cam_left  = pipeline.create(dai.node.Camera).build(dai.CameraBoardSocket.CAM_B)
-        cam_right = pipeline.create(dai.node.Camera).build(dai.CameraBoardSocket.CAM_C)
-
-        # ステレオ深度（RGB に align）
-        stereo = pipeline.create(dai.node.StereoDepth)
-        stereo.setDefaultProfilePreset(dai.node.StereoDepth.PresetMode.HIGH_DENSITY)
-        stereo.setDepthAlign(dai.CameraBoardSocket.CAM_A)
-        stereo.setLeftRightCheck(True)
-        stereo.setSubpixel(False)
-
-        cam_left.requestFullResolutionOutput().link(stereo.left)
-        cam_right.requestFullResolutionOutput().link(stereo.right)
-
-        # RGB 出力（解像度・FPS は config.ini）
-        cap = dai.ImgFrameCapability()
-        cap.size.fixed((CAMERA_WIDTH, CAMERA_HEIGHT))
-        cap.fps.fixed(CAMERA_FPS)
-        rgb_out = cam_color.requestOutput(cap, False)
-
-        # 出力キュー
-        rgb_queue   = rgb_out.createOutputQueue(maxSize=4, blocking=False)
-        depth_queue = stereo.depth.createOutputQueue(maxSize=4, blocking=False)
-
-        pipeline.start()
-
-        yield device, rgb_queue, depth_queue
 
 
 def frame_to_jpeg_bytes(frame: np.ndarray) -> bytes:
@@ -148,6 +138,14 @@ def main_loop(device, rgb_queue, depth_queue, session, students):
             if nonlocal_session is None:
                 logger.warning("セッションが終了しました。終了します。")
                 break
+            # 次のコマに切り替わっていたら、前セッションの出席状態を引き継がない
+            if session is None or nonlocal_session["id"] != session["id"]:
+                logger.info("セッション切替を検出（%s）→ 出席状態をリセット",
+                            nonlocal_session.get("course_name", ""))
+                attended.clear()
+                cooldowns.clear()
+                spoof_log_cooldowns.clear()
+                consecutive_hits.clear()
             session = nonlocal_session
             raw_students = api_client.get_students()
             students[:] = load_student_embeddings(raw_students)
@@ -158,18 +156,25 @@ def main_loop(device, rgb_queue, depth_queue, session, students):
         in_depth = depth_queue.tryGet()
 
         if in_rgb is None or in_depth is None:
+            time.sleep(0.005)  # フレーム待ち。スリープなしだと CPU 1コアを空回りで使い切る
             continue
 
         rgb_frame   = in_rgb.getCvFrame()
         depth_frame = in_depth.getFrame()
         frame_count += 1
 
-        # DETECT_INTERVAL フレームに1回だけ顔検出・照合を実行（表示は毎フレーム）
+        # DETECT_INTERVAL フレームに1回だけ顔検出・照合を実行（表示は毎フレーム）。
+        # fresh_detection: このフレームで実際に検出を行ったか。
+        # キャッシュ流用フレームで投票カウンタを進めると「1回の検出が
+        # DETECT_INTERVAL 回分の票」になり投票が無意味になるため、
+        # カウンタ更新・ログ出力は検出フレームに限定する。
         if frame_count % DETECT_INTERVAL == 0:
             faces = face_detector.detect_and_embed(rgb_frame)
             last_faces = faces
+            fresh_detection = True
         else:
             faces = last_faces
+            fresh_detection = False
 
         # 深度マップを可視化（デバッグ表示用）
         depth_vis = None
@@ -194,9 +199,10 @@ def main_loop(device, rgb_queue, depth_queue, session, students):
             matched_student, dist = face_detector.find_best_match(embedding, students)
 
             if matched_student is None:
-                logger.info("識別不能  距離=%.3f", dist)
-                _draw_unknown(rgb_frame, face)
-                # 未登録者として検出ログに記録（一定間隔でスロットリング）
+                if fresh_detection:
+                    logger.info("識別不能  距離=%.3f", dist)
+                # 未登録者として検出ログに記録（一定間隔でスロットリング）。
+                # クロップは描画より先に行う（証跡画像に枠や文字を焼き込まない）。
                 if time.time() - last_unknown_log >= DETECTION_LOG_COOLDOWN_SEC:
                     last_unknown_log = time.time()
                     unknown_crop = crop_face(rgb_frame, face)
@@ -206,39 +212,46 @@ def main_loop(device, rgb_queue, depth_queue, session, students):
                         similarity_score=dist,
                         captured_image_bytes=frame_to_jpeg_bytes(unknown_crop),
                     )
+                _draw_unknown(rgb_frame, face)
                 continue
 
-            logger.info("識別: %s (%s)  距離=%.3f  類似度=%.1f%%",
-                        matched_student["name"], matched_student["student_number"],
-                        dist, (1 - dist) * 100)
+            if fresh_detection:
+                logger.info("識別: %s (%s)  距離=%.3f  類似度=%.1f%%",
+                            matched_student["name"], matched_student["student_number"],
+                            dist, (1 - dist) * 100)
 
             sid = matched_student["id"]
 
             if time.time() - cooldowns.get(sid, 0) < COOLDOWN_SEC:
-                logger.info("  → スキップ（クールダウン中）")
+                if fresh_detection:
+                    logger.info("  → スキップ（クールダウン中）")
                 _draw_match(rgb_frame, face, matched_student["name"], dist, duplicate=True)
                 continue
 
             if sid in attended:
-                logger.info("  → スキップ（本日出席済み）")
+                if fresh_detection:
+                    logger.info("  → スキップ（本日出席済み）")
                 _draw_match(rgb_frame, face, matched_student["name"], dist, duplicate=True)
                 continue
 
-            # Step 1.5: テンポラル投票 ─ 連続 TEMPORAL_VOTE_MIN フレーム一致で確定
-            #   1フレームの瞬間的な誤マッチ（斜め顔・まばたき・照明ちらつき）を除去する。
+            # Step 1.5: テンポラル投票 ─ 連続 TEMPORAL_VOTE_MIN 回の実検出で一致したら確定
+            #   1回の瞬間的な誤マッチ（斜め顔・まばたき・照明ちらつき）を除去する。
+            #   カウンタは検出を実行したフレーム（fresh_detection）でのみ進める。
             matched_sids_this_frame.add(sid)
-            consecutive_hits[sid] = consecutive_hits.get(sid, 0) + 1
-            hits = consecutive_hits[sid]
+            if fresh_detection:
+                consecutive_hits[sid] = consecutive_hits.get(sid, 0) + 1
+            hits = consecutive_hits.get(sid, 0)
 
             if hits < TEMPORAL_VOTE_MIN:
-                logger.info("  → 投票待ち (%d/%d フレーム): %s",
-                            hits, TEMPORAL_VOTE_MIN, matched_student["name"])
+                if fresh_detection:
+                    logger.info("  → 投票待ち (%d/%d 回): %s",
+                                hits, TEMPORAL_VOTE_MIN, matched_student["name"])
                 _draw_match(rgb_frame, face, matched_student["name"], dist)
                 continue  # まだ確定しない
 
-            # TEMPORAL_VOTE_MIN フレーム連続確認できた → 出席処理へ進む
+            # TEMPORAL_VOTE_MIN 回連続確認できた → 出席処理へ進む
             consecutive_hits[sid] = 0  # カウンタをリセット（二重送信防止）
-            logger.info("  → %d フレーム連続確認 → 出席処理へ: %s",
+            logger.info("  → %d 回連続確認 → 出席処理へ: %s",
                         TEMPORAL_VOTE_MIN, matched_student["name"])
 
             # Step 2: 識別後に深度センサーでなりすまし確認
@@ -249,9 +262,8 @@ def main_loop(device, rgb_queue, depth_queue, session, students):
                         std_dev, "生体 OK ✓" if is_live else "なりすまし NG ✗")
 
             if not is_live:
-                _draw_rejected(rgb_frame, face,
-                               f"{matched_student['name']} SPOOFING std={std_dev:.0f}mm")
-                # なりすまし疑いとして検出ログに記録（学生別にスロットリング）
+                # なりすまし疑いとして検出ログに記録（学生別にスロットリング）。
+                # クロップは描画より先に行う（証跡画像に枠や文字を焼き込まない）。
                 if time.time() - spoof_log_cooldowns.get(sid, 0) >= DETECTION_LOG_COOLDOWN_SEC:
                     spoof_log_cooldowns[sid] = time.time()
                     spoof_crop = crop_face(rgb_frame, face)
@@ -263,6 +275,8 @@ def main_loop(device, rgb_queue, depth_queue, session, students):
                         depth_std_dev=std_dev,
                         captured_image_bytes=frame_to_jpeg_bytes(spoof_crop),
                     )
+                _draw_rejected(rgb_frame, face,
+                               f"{matched_student['name']} SPOOFING std={std_dev:.0f}mm")
                 continue
 
             cooldowns[sid] = time.time()
@@ -293,11 +307,12 @@ def main_loop(device, rgb_queue, depth_queue, session, students):
 
             _draw_match(rgb_frame, face, matched_student["name"], dist)
 
-        # テンポラル投票: 今フレームで見えなかった学生のカウンタをリセット
+        # テンポラル投票: 今回の検出で見えなかった学生のカウンタをリセット
         # （一時的に顔が見えなくなった後の残カウントを防ぎ、再登場時に投票を最初からやり直す）
-        for sid in list(consecutive_hits.keys()):
-            if sid not in matched_sids_this_frame:
-                consecutive_hits[sid] = 0
+        if fresh_detection:
+            for sid in list(consecutive_hits.keys()):
+                if sid not in matched_sids_this_frame:
+                    consecutive_hits[sid] = 0
 
         if DEBUG_DISPLAY:
             disp = cv2.resize(rgb_frame, (CAMERA_WIDTH, CAMERA_HEIGHT))

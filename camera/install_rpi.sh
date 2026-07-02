@@ -82,8 +82,12 @@ Type=simple
 User=$USER
 WorkingDirectory=$SCRIPT_DIR
 ExecStart=$PYTHON_BIN main.py
-Restart=on-failure
+# always: セッション終了時は正常終了(exit 0)するため、on-failure だと
+# 1コマ目の終了後にサービスが止まり、次のコマで出席が取れなくなる。
+# 10秒ごとに再起動して次のアクティブセッションを待ち受ける。
+Restart=always
 RestartSec=10
+StartLimitIntervalSec=0
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=attendance-camera

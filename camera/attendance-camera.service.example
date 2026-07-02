@@ -38,9 +38,12 @@ WorkingDirectory=/home/pi/attendance-systemV2/camera
 # 仮想環境の Python で main.py を実行
 ExecStart=/home/pi/attendance-venv/bin/python main.py
 
-# クラッシュ時に自動再起動（カメラ抜き差しや一時的な接続切れに対応）
-Restart=on-failure
+# always: セッション終了時は正常終了(exit 0)するため、on-failure だと
+# 1コマ目の終了後にサービスが止まり、次のコマで出席が取れなくなる。
+# 10秒ごとに再起動して次のアクティブセッションを待ち受ける。
+Restart=always
 RestartSec=10
+StartLimitIntervalSec=0
 
 # ログを journald に流す
 StandardOutput=journal
