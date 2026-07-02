@@ -21,7 +21,8 @@ class DetectionController extends Controller
             'reason'                => 'required|in:spoofing,unknown',
             'attendance_session_id' => 'nullable|exists:attendance_sessions,id',
             'matched_student_id'    => 'nullable|exists:students,id',
-            'similarity_score'      => 'nullable|numeric|min:0|max:1',
+            // コサイン距離（0=同一 〜 2=逆方向）。未登録者は 1 を超えることがある
+            'similarity_score'      => 'nullable|numeric|min:0|max:2',
             'depth_std_dev'         => 'nullable|numeric|min:0',
             'captured_image'        => 'nullable|string', // base64
         ]);
