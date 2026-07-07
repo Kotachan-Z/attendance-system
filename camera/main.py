@@ -28,10 +28,12 @@ from config import (
     DEBUG_DISPLAY,
     DETECT_INTERVAL,
     DETECTION_LOG_COOLDOWN_SEC,
+    FACE_STRONG_MATCH_THRESHOLD,
     JPEG_QUALITY,
     MIN_FACE_SIZE,
     STUDENT_CACHE_TTL_SEC,
     TEMPORAL_VOTE_MIN,
+    TEMPORAL_VOTE_STRONG_MIN,
 )
 from depth_checker import is_live_face
 from face_detector import compute_centroid
@@ -234,25 +236,36 @@ def main_loop(device, rgb_queue, depth_queue, session, students):
                 _draw_match(rgb_frame, face, matched_student["name"], dist, duplicate=True)
                 continue
 
-            # Step 1.5: テンポラル投票 ─ 連続 TEMPORAL_VOTE_MIN 回の実検出で一致したら確定
+            # Step 1.5: テンポラル投票 ─ 連続した実検出で一致が続いたら確定する。
             #   1回の瞬間的な誤マッチ（斜め顔・まばたき・照明ちらつき）を除去する。
             #   カウンタは検出を実行したフレーム（fresh_detection）でのみ進める。
+            #
+            #   必要投票数は一致の強さで変える（速度と精度の両立）:
+            #     ・強い一致（距離 ≤ FACE_STRONG_MATCH_THRESHOLD）＝別人の可能性が
+            #       極めて低い → TEMPORAL_VOTE_STRONG_MIN 回で確定（速い）
+            #     ・際どい一致 → 従来どおり TEMPORAL_VOTE_MIN 回確認（誤りを防ぐ）
+            #   確定判定は「今フレームの距離」に基づくため、際どいフレームで
+            #   少数票のまま確定することはない（＝精度を落とさず速くする）。
             matched_sids_this_frame.add(sid)
             if fresh_detection:
                 consecutive_hits[sid] = consecutive_hits.get(sid, 0) + 1
             hits = consecutive_hits.get(sid, 0)
 
-            if hits < TEMPORAL_VOTE_MIN:
+            is_strong = dist <= FACE_STRONG_MATCH_THRESHOLD
+            required = TEMPORAL_VOTE_STRONG_MIN if is_strong else TEMPORAL_VOTE_MIN
+
+            if hits < required:
                 if fresh_detection:
-                    logger.info("  → 投票待ち (%d/%d 回): %s",
-                                hits, TEMPORAL_VOTE_MIN, matched_student["name"])
+                    logger.info("  → 投票待ち (%d/%d 回%s): %s",
+                                hits, required, "・強一致" if is_strong else "",
+                                matched_student["name"])
                 _draw_match(rgb_frame, face, matched_student["name"], dist)
                 continue  # まだ確定しない
 
-            # TEMPORAL_VOTE_MIN 回連続確認できた → 出席処理へ進む
+            # 必要回数の連続確認ができた → 出席処理へ進む
             consecutive_hits[sid] = 0  # カウンタをリセット（二重送信防止）
-            logger.info("  → %d 回連続確認 → 出席処理へ: %s",
-                        TEMPORAL_VOTE_MIN, matched_student["name"])
+            logger.info("  → %d 回連続確認%s → 出席処理へ: %s",
+                        hits, "・強一致" if is_strong else "", matched_student["name"])
 
             # Step 2: 識別後に深度センサーでなりすまし確認
             bbox_tuple = (face["x"], face["y"], face["w"], face["h"])

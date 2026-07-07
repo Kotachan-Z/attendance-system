@@ -61,6 +61,9 @@ MIN_FACE_CONFIDENCE   = _float("face", "min_detection_confidence", "MIN_FACE_CON
 FACE_MATCH_THRESHOLD  = _float("face", "match_threshold",         "FACE_MATCH_THRESHOLD",     0.40)
 FACE_AMBIGUITY_MARGIN = _float("face", "ambiguity_margin",        "FACE_AMBIGUITY_MARGIN",    0.10)
 MIN_FACE_SIZE         = _int("face", "min_face_size",             "MIN_FACE_SIZE",            60)
+# 「強い一致」と見なす距離の上限。これ以下なら別人の可能性が極めて低いので
+#   テンポラル投票を少ない回数で確定してよい（速度と精度の両立）。
+FACE_STRONG_MATCH_THRESHOLD = _float("face", "strong_match_threshold", "FACE_STRONG_MATCH_THRESHOLD", 0.30)
 
 # ── [liveness] 深度なりすまし検出 ─────────────────────────────────────
 DEPTH_LIVENESS_THRESHOLD_MM = _float("liveness", "depth_std_threshold_mm", "DEPTH_LIVENESS_THRESHOLD_MM", 15.0)
@@ -76,7 +79,10 @@ DETECT_INTERVAL       = _int("recognition", "detect_interval",       "DETECT_INT
 DETECTION_LOG_COOLDOWN_SEC = _int("recognition", "detection_log_cooldown_sec", "DETECTION_LOG_COOLDOWN_SEC", 30)
 # テンポラル投票: この回数だけ連続して同一学生が照合されたとき初めて出席処理へ進む。
 #   1フレームの偶発的な誤マッチ（横顔・まばたき・照明変化）を排除する安全弁。
+#   際どい一致（距離が strong_match_threshold より大きい）に適用する。
 TEMPORAL_VOTE_MIN = _int("recognition", "temporal_vote_min", "TEMPORAL_VOTE_MIN", 3)
+# 強い一致のときの投票数。確定を速くするための短縮版（誤マッチ耐性を残すため最低 2 推奨）。
+TEMPORAL_VOTE_STRONG_MIN = _int("recognition", "temporal_vote_strong_min", "TEMPORAL_VOTE_STRONG_MIN", 2)
 
 # ── [camera] カメラ設定 ───────────────────────────────────────────────
 CAMERA_WIDTH  = _int("camera", "width",        "CAMERA_WIDTH",  1920)
