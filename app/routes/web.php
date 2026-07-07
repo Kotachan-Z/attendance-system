@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\TeacherController;
 use App\Http\Controllers\AttendanceRecordController;
 use App\Http\Controllers\AttendanceSessionController;
 use App\Http\Controllers\Auth\StudentAuthController;
+use App\Http\Controllers\ClassGroupController;
 use App\Http\Controllers\ClassScheduleController;
 use App\Http\Controllers\CourseController;
 use App\Http\Controllers\DashboardController;
@@ -44,6 +45,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('sessions/create', [AttendanceSessionController::class, 'create'])->name('sessions.create');
         Route::post('sessions', [AttendanceSessionController::class, 'store'])->name('sessions.store');
         Route::patch('sessions/{session}/end', [AttendanceSessionController::class, 'end'])->name('sessions.end');
+
+        // 組（クラス）の選択肢マスタの追加・削除
+        Route::post('class-groups', [ClassGroupController::class, 'store'])->name('class-groups.store');
+        Route::delete('class-groups/{classGroup}', [ClassGroupController::class, 'destroy'])->name('class-groups.destroy');
 
         // なりすまし疑い・識別不能の検出ログ
         Route::get('detections', [DetectionLogController::class, 'index'])->name('detections.index');

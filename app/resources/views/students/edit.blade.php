@@ -32,16 +32,9 @@
         <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">
                 組（クラス）
-                <span class="text-gray-400 font-normal text-xs ml-1">例: 1年A組（任意）</span>
+                <span class="text-gray-400 font-normal text-xs ml-1">プルダウンから選択（任意）</span>
             </label>
-            <input type="text" name="class_name" value="{{ old('class_name', $student->class_name) }}" list="class-name-list"
-                   placeholder="1年A組" id="field-class-name"
-                   class="w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
-            <datalist id="class-name-list">
-                @foreach (\App\Models\Student::query()->whereNotNull('class_name')->where('class_name', '!=', '')->distinct()->orderBy('class_name')->pluck('class_name') as $cn)
-                    <option value="{{ $cn }}"></option>
-                @endforeach
-            </datalist>
+            @include('students._class_select', ['selected' => old('class_name', $student->class_name)])
             <p id="err-class-name" class="text-red-500 text-xs mt-1 hidden"></p>
         </div>
 
