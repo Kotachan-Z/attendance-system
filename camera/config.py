@@ -67,6 +67,12 @@ DEPTH_LIVENESS_THRESHOLD_MM = _float("liveness", "depth_std_threshold_mm", "DEPT
 DEPTH_VALID_MIN_MM          = _float("liveness", "depth_valid_min_mm",     "DEPTH_VALID_MIN_MM",          100.0)
 DEPTH_VALID_MAX_MM          = _float("liveness", "depth_valid_max_mm",     "DEPTH_VALID_MAX_MM",          2000.0)
 DEPTH_MIN_VALID_PIXELS      = _int("liveness", "depth_min_valid_pixels",   "DEPTH_MIN_VALID_PIXELS",      100)
+# 顔中央部のばらつき上限(mm)。これを超えるのは「画面の縁・背景の段差混入」＝平面すり抜けの典型
+DEPTH_LIVENESS_MAX_MM       = _float("liveness", "depth_spread_max_mm",    "DEPTH_LIVENESS_MAX_MM",       150.0)
+# bbox を上下左右この比率だけ縮めて中央部のみ評価（0.25 → 中央 50% を使用）
+DEPTH_BBOX_SHRINK_RATIO     = _float("liveness", "depth_bbox_shrink_ratio", "DEPTH_BBOX_SHRINK_RATIO",    0.25)
+# パッチ内の有効深度画素の最低比率。画面・光沢面はステレオが崩れて有効率が下がる
+DEPTH_MIN_VALID_RATIO       = _float("liveness", "depth_min_valid_ratio",  "DEPTH_MIN_VALID_RATIO",       0.25)
 
 # ── [recognition] 運用パラメータ ─────────────────────────────────────
 COOLDOWN_SEC          = _int("recognition", "cooldown_sec",          "COOLDOWN_SEC",          5)
