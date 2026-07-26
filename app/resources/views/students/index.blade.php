@@ -118,15 +118,9 @@
         <div class="max-w-5xl mx-auto px-4 py-3 flex flex-wrap items-center gap-3">
             <span id="bar-count" class="text-sm font-medium text-gray-700 whitespace-nowrap">0名 選択中</span>
 
-            <div class="flex items-center gap-2 flex-1 min-w-[220px]">
+            <div class="flex items-center gap-2 flex-1 min-w-[240px]">
                 <label class="text-sm text-gray-600 whitespace-nowrap">組</label>
-                <input type="text" name="class_name" list="bulk-class-list" placeholder="例: 1年A組（空欄で未分類に）"
-                       class="flex-1 min-w-0 border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                <datalist id="bulk-class-list">
-                    @foreach (\App\Models\Student::query()->whereNotNull('class_name')->where('class_name', '!=', '')->distinct()->orderBy('class_name')->pluck('class_name') as $cn)
-                        <option value="{{ $cn }}"></option>
-                    @endforeach
-                </datalist>
+                @include('students._class_select', ['selected' => null])
             </div>
 
             <button type="button" onclick="toggleSelectMode()"
