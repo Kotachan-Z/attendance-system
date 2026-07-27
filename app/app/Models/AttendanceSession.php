@@ -48,9 +48,40 @@ class AttendanceSession extends Model
                     ->withTimestamps();
     }
 
+    /**
+     * 進行中か。
+     *   予定あり（時間割由来）: 予定開始〜予定終了の「今その時間」だけ進行中。
+     *     → 未来のコマは「予定」、時間を過ぎたものは「終了」扱いになる。
+     *   予定なし（手動開始）: 終了されるまで進行中（従来動作）。
+     */
     public function isActive(): bool
     {
-        return is_null($this->ended_at);
+        if (! is_null($this->ended_at)) {
+            return false;
+        }
+        if ($this->scheduled_start_at) {
+            $now = Carbon::now();
+            return $this->scheduled_start_at->lessThanOrEqualTo($now)
+                && (is_null($this->scheduled_end_at) || $this->scheduled_end_at->greaterThanOrEqualTo($now));
+        }
+        return true;
+    }
+
+    /** 予定開始がまだ来ていない（＝これから始まる予定）か。 */
+    public function isUpcoming(): bool
+    {
+        return is_null($this->ended_at)
+            && $this->scheduled_start_at
+            && $this->scheduled_start_at->isFuture();
+    }
+
+    /** 表示用の状態: 'upcoming'（予定）/ 'active'（進行中）/ 'ended'（終了）。 */
+    public function liveStatus(): string
+    {
+        if ($this->isUpcoming()) {
+            return 'upcoming';
+        }
+        return $this->isActive() ? 'active' : 'ended';
     }
 
     /** 判定基準となる開始時刻（予定があれば予定、なければ実開始） */
