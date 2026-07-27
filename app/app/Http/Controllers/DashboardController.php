@@ -15,7 +15,17 @@ class DashboardController extends Controller
                                           ->latest()
                                           ->get();
 
+        // 「進行中」= 未終了、かつ（手動開始 or 予定開始〜予定終了の時間内）。
+        //   未来の時間割セッションは進行中に数えない。
+        $now = now();
         $activeSessions = AttendanceSession::whereNull('ended_at')
+                                           ->where(function ($q) use ($now) {
+                                               $q->whereNull('scheduled_start_at')
+                                                 ->orWhere(function ($q2) use ($now) {
+                                                     $q2->where('scheduled_start_at', '<=', $now)
+                                                        ->where('scheduled_end_at', '>=', $now);
+                                                 });
+                                           })
                                            ->with('course')
                                            ->withCount('attendanceRecords')
                                            ->get();

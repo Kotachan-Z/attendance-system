@@ -103,11 +103,7 @@
                     <td class="px-4 py-3 text-gray-600">{{ $session->started_at->format('H:i') }}</td>
                     <td class="px-4 py-3 text-gray-600">{{ $session->attendanceRecords->count() }}名</td>
                     <td class="px-4 py-3">
-                        @if ($session->isActive())
-                            <span class="text-xs bg-emerald-50 text-emerald-600 font-semibold px-2 py-0.5 rounded">進行中</span>
-                        @else
-                            <span class="text-xs bg-gray-100 text-gray-500 font-semibold px-2 py-0.5 rounded">終了</span>
-                        @endif
+                        @include('sessions._status_badge', ['session' => $session])
                     </td>
                     <td class="px-4 py-3 text-right">
                         <a href="{{ route('sessions.show', $session) }}" class="text-indigo-600 hover:underline">詳細 →</a>
