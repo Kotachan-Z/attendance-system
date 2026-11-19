@@ -63,7 +63,7 @@ attendance-systemV2/
 
 ### 0. 前提（インストール済みであること）
 
-- PHP 8.3+ / Composer / Node.js / MySQL
+- PHP 8.4.1+ / Composer / Node.js / MySQL
 - Python 3.10+（カメラを使う場合）
 
 ### 1. MySQL でデータベースを作成
