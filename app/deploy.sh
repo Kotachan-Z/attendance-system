@@ -9,7 +9,7 @@
 #    bash deploy.sh
 #
 #  前提:
-#    - PHP 8.3 / Composer / Node.js / MySQL がインストール済み
+#    - PHP 8.4.1+ / Composer / Node.js / MySQL がインストール済み
 #    - .env が設定済み（APP_ENV=production, APP_DEBUG=false など）
 #    - nginx + php-fpm が動いている（nginx.example.conf を参照）
 # ============================================================
@@ -110,7 +110,7 @@ echo "============================================================"
 echo ""
 echo " 動作確認:"
 echo "   curl http://localhost/up         # Laravel ヘルスチェック"
-echo "   sudo systemctl status php8.3-fpm # PHP-FPM の状態"
+echo "   sudo systemctl status php8.4-fpm # PHP-FPM の状態"
 echo "   sudo systemctl status nginx      # nginx の状態"
 echo ""
 echo " ログ確認:"
